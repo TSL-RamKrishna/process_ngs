@@ -27,6 +27,7 @@ parser.add_argument("--leftclip", action="store", dest="leftclip", type=int, hel
 parser.add_argument("--rightclip", action="store", dest="rightclip", type=int, help="removes [int] bases from right end or 3' end")
 parser.add_argument("-r", "--reverse", action="store_true", dest="reverse", default=False, help="reverses the sequence, not reverse complement")
 parser.add_argument("--reversecomp", action="store_true", dest="reversecomp", default=False, help="reverse complements sequence reads")
+parser.add_argument("--random", action="store_true", dest="random", default=False, help="Generate 50 percent of input sequences randomly using seed value, meaning you get same set of random sequences every time.")
 parser.add_argument("-o", "--output", action="store", dest="output", help="output filename")
 
 
@@ -248,8 +249,9 @@ def read_fasta_fastq():
 	for record in SeqIO.parse(fh, options.inputfiletype):
 			print options.symbol + record.description
 			print str(record.seq)
-			print "+"
-			print convert_int_to_ascii_char(record.letter_annotations["phred_quality"])
+			if options.inputfiletype == "fastq":
+				print "+"
+				print convert_int_to_ascii_char(record.letter_annotations["phred_quality"])
 	return
 
 
@@ -412,18 +414,53 @@ def getlength():
 
 	return
 
+def generate_random_number_with_seed(seedvalue=3, minvalue=0, maxvalue=10, total_to_generate=10):
+	import random
 
+	random.seed(seedvalue)
+	random_numbers=[]
+	while len(random_numbers) < total_to_generate:
+		generated_value=random.randint(minvalue, maxvalue-1)
+		if generated_value in random_numbers:
+			continue
 
+		random_numbers.append(generated_value)
 
+	return random_numbers
 
+def get_random_sequences_using_random_seed():
 
+	output="generated_random." + options.inputfiletype
+	out=open(output, "w")
+	with open (options.input, 'rb') as fh:
+	    records=list(SeqIO.parse(fh, options.inputfiletype))
 
+	total_sequences=len(records)
+	how_many_to_generate=total_sequences/2			#gets 50% of sequences randomly from fasta/fastq file, change this value to get desired percentage.
+
+	random_numbers=generate_random_number_with_seed(maxvalue=total_sequences, total_to_generate=how_many_to_generate)
+	
+	for value in random_numbers:
+		if options.inputfiletype=="fasta":
+			out.write(">" + str(records[value].id) + "\n" + str(records[value].seq) + "\n")
+		elif options.inputfiletype=="fastq":
+			out.write("@" + records[value].id + "\n" + str(records[value].seq) + "\n" + "+" + convert_int_to_ascii_char(records[value].letter_annotations["phred_quality"]) + "\n")
+
+	out.close()
+	options.input=output
+	return
 
 def Mainprogram():
 
 	if options.input:
-		if options.interval:
+		if options.interval and not options.random:
 			seq_by_interval()
+		elif options.random and not options.interval:
+			get_random_sequences_using_random_seed()
+		else:
+			print "Options interval and random should not go togther. The result will be confusing."
+			exit(1)
+
 		if options.seqid:
 			get_seqs_by_id()
 		if options.getlength == True:
@@ -451,10 +488,11 @@ def Mainprogram():
 
 
 		if options.output:
-			os.rename(options.input, options.output)
+			#os.rename(options.input, options.output)
+			pass
 		else:
 			read_fasta_fastq()
-			os.remove(options.input)
+			#os.remove(options.input)
 		options.input=options.temp_input
 
 	else:
