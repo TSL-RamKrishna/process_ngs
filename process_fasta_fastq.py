@@ -457,9 +457,6 @@ def Mainprogram():
 			seq_by_interval()
 		elif options.random and not options.interval:
 			get_random_sequences_using_random_seed()
-		else:
-			print "Options interval and random should not go togther. The result will be confusing."
-			exit(1)
 
 		if options.seqid:
 			get_seqs_by_id()
