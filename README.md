@@ -56,7 +56,10 @@ optional arguments:
   --rightclip RIGHTCLIP
                         removes [int] bases from right end or 3' end
   -r, --reverse         reverses the sequence, not reverse complement
-  --reversecomp         reverse complements sequence reads
+  --reversecomp, --reverse_complement
+                        reverse complements sequence reads
+  --translate           Translate nucleotide seqeunce to amino acid sequence
+  
   -o OUTPUT, --output OUTPUT
                         output filename
 ```
@@ -76,6 +79,10 @@ To extract the sequence reads and get general stats of the extract reads only
 To extract reads with seqid and output reads as subreads from 10th base to 100th bp
 
 > process_ngs.py --input your_file --seqid seqid1,seqid2 --subseq --min 10 --max 100
+
+To extract reads with seqid and output reads as subreads from 10th base to 100th bp, reverse complement and then translate
+
+> process_ngs.py --input your_file --seqid seqid1,seqid2 --subseq --min 10 --max 100 --reverse_complement --translate
 
 To extract reads with seqid and output reads as subreads from 10th base
 

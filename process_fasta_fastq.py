@@ -6,7 +6,7 @@ from string import maketrans
 
 from Bio import SeqIO
 
-Description="Program to process fasta or fastq file in wide range of aspects Check the help for different types of available options."
+Description="Pgram to process fasta or fastq file in wide range of aspects Check the help for different types of available options."
 usage="""
 python {script} --input fasta/fastqFile --read
 python {script} --input fasta/fastqFile --stats
@@ -16,7 +16,7 @@ python {script} --input fasta/fastqFile --stats
 parser=argparse.ArgumentParser(description=Description, epilog=usage)
 parser.add_argument("-i", "--input", action="store", dest="input", help="Fasta or fastq input file")
 parser.add_argument("--stats", action="store_true", default=False, help="Prints the basic statistics of the reads")
-parser.add_argument("--interval", action="store", dest="interval", help="gets the sequences in interval specified. Provide start point and then interval. e.g. 3,2")
+parser.add_argument("--interval", action="store", dest="interval", help="gets the sequences in interval specified. Pvide start point and then interval. e.g. 3,2")
 parser.add_argument("--seqid", action="store", dest="seqid", help="comma separated list of sequence id from input file")
 parser.add_argument("-l", "--getlength", action="store_true", dest="getlength", default=False, help="Outputs the sequence ID and sequence length (in tab-delimited)")
 parser.add_argument("--filterbylength", action="store_true", dest="filterbylength", help="filter reads by length")
@@ -26,7 +26,8 @@ parser.add_argument("-y", "--max", action="store", dest="max", type=int, help="p
 parser.add_argument("--leftclip", action="store", dest="leftclip", type=int, help="removes [int] bases from left end or 5' end")
 parser.add_argument("--rightclip", action="store", dest="rightclip", type=int, help="removes [int] bases from right end or 3' end")
 parser.add_argument("-r", "--reverse", action="store_true", dest="reverse", default=False, help="reverses the sequence, not reverse complement")
-parser.add_argument("--reversecomp", action="store_true", dest="reversecomp", default=False, help="reverse complements sequence reads")
+parser.add_argument("--reversecomp", "--reverse_complement", action="store_true", dest="reversecomp", default=False, help="reverse complements sequence reads")
+parser.add_argument("--translate", action="store_true", dest="translate", default=False, help="Translate nucleotide seqeunce to amino acid sequence")
 parser.add_argument("--random", action="store_true", dest="random", default=False, help="Generate 50 percent of input sequences randomly using seed value, meaning you get same set of random sequences every time.")
 parser.add_argument("-o", "--output", action="store", dest="output", help="output filename")
 
@@ -35,6 +36,9 @@ parser.add_argument("-o", "--output", action="store", dest="output", help="outpu
 
 options=parser.parse_args()
 options.temp_input = options.input
+
+if not options.output:
+	options.read=True
 
 if (options.leftclip and (options.subseq or options.max)):
 	print "You cannot provide --leftclip option along with --subseq or --max/--min"
@@ -52,6 +56,35 @@ def convert_int_to_ascii_char(scores):
 
 	return ascii_val
 
+
+def translate_one_ntseq(ntseq):
+	#translates nt sequences to aa seq, this assumes the ntseq is in reading frame.
+
+	codon_aa_table =	{
+	"GGG":"G",		"GGA":"G",		"GGT":"G",		"GGC":"G",		"GAG":"E",		"GAA":"E",		"GAT":"D",		"GAC":"D",		"GTG":"V",		"GTA":"V",		"GTT":"V",		"GTC":"V",		"GCG":"A",		"GCA":"A",		"GCT":"A",		"GCC":"A",		"AGG":"R",		"AGA":"R",		"AGT":"S",		"AGC":"S",		"AAG":"K",		"AAA":"K",		"AAT":"N",		"AAC":"N",		"ATG":"M",		"ATA":"I",		"ATT":"I",		"ATC":"I",		"ACG":"T",		"ACA":"T",		"ACT":"T",		"ACC":"T",		"TGG":"W",		"TGA":"X",		"TGT":"C",		"TGC":"C",		"TAG":"X",		"TAA":"X",		"TAT":"Y",		"TAC":"Y",		"TTG":"L",		"TTA":"L",		"TTT":"F",		"TTC":"F",		"TCG":"S",		"TCA":"S",		"TCT":"S",		"TCC":"S",		"CGG":"R",		"CGA":"R",		"CGT":"R",		"CGC":"R",		"CAG":"Q",		"CAA":"Q",		"CAT":"H",		"CAC":"H",		"CTG":"L",		"CTA":"L",		"CTT":"L",		"CTC":"L",		"CCG":"P",		"CCA":"P",		"CCT":"P",		"CCC":"P"
+	}
+
+	aa_seq = ""
+
+	position=0
+	while position < len(ntseq):
+		codon = ntseq[position:position+3]
+		aminoacid = codon_aa_table[codon]
+		aa_seq += aminoacid
+		position+=3
+
+	return aa_seq
+
+def ntseq_translation_to_protein():
+
+	output="translate_output.fasta"
+	out=open(output, "w")
+	with open(options.input) as fh:
+		for record in SeqIO.parse(fh, options.inputfiletype):
+			out.write(">"+ record.id + "\n" + translate_one_ntseq(str(record.seq)) + "\n")
+
+	out.close()
+	options.input=output
 
 
 def reverse_sequence():
@@ -439,7 +472,7 @@ def get_random_sequences_using_random_seed():
 	how_many_to_generate=total_sequences/2			#gets 50% of sequences randomly from fasta/fastq file, change this value to get desired percentage.
 
 	random_numbers=generate_random_number_with_seed(maxvalue=total_sequences, total_to_generate=how_many_to_generate)
-	
+
 	for value in random_numbers:
 		if options.inputfiletype=="fasta":
 			out.write(">" + str(records[value].id) + "\n" + str(records[value].seq) + "\n")
@@ -483,14 +516,18 @@ def Mainprogram():
 		elif options.reversecomp:
 			reverse_complement()
 
+		if options.translate:
+			ntseq_translation_to_protein()
+
 
 		if options.output:
-			#os.rename(options.input, options.output)
-			pass
+			os.rename(options.input, options.output)
+
+		elif options.read:
+			read_fasta_fastq()
 		else:
 			read_fasta_fastq()
-			#os.remove(options.input)
-		options.input=options.temp_input
+			os.remove(options.input)
 
 	else:
 		print "No input file provided."
