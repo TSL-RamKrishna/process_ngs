@@ -1,6 +1,6 @@
 #!/user/bin/env python
 
-import sys, os
+import sys, os, re
 import argparse
 from string import maketrans
 
@@ -16,11 +16,14 @@ python {script} --input fasta/fastqFile --stats
 parser=argparse.ArgumentParser(description=Description, epilog=usage)
 parser.add_argument("-i", "--input", action="store", dest="input", help="Fasta or fastq input file")
 parser.add_argument("--stats", action="store_true", default=False, help="Prints the basic statistics of the reads")
+parser.add_argument("--numerate", action="store_true", default=False, help="Add _1, _2, ... in sequence ids. Good option if >1 sequences have same ids.")
 parser.add_argument("--interval", action="store", dest="interval", help="gets the sequences in interval specified. Pvide start point and then interval. e.g. 3,2")
 parser.add_argument("--seqid", action="store", dest="seqid", help="comma separated list of sequence id from input file")
+parser.add_argument("--seqidregex", action="store", dest="seqidregex", help="get sequences with sequence id matching the regular expression provided")
 parser.add_argument("-l", "--getlength", action="store_true", dest="getlength", default=False, help="Outputs the sequence ID and sequence length (in tab-delimited)")
 parser.add_argument("--filterbylength", action="store_true", dest="filterbylength", help="filter reads by length")
 parser.add_argument("--subseq", action="store_true", dest="subseq", default=False, help="get subsequence from sequence reads. Default: gets first 100 bps in every sequence")
+parser.add_argument("--list", action="store", dest="list", help="list to extract. Format: chromosome minpos maxpos [newchromosome]")
 parser.add_argument("-x", "--min", action="store", dest="min", type=int, default=1, help="provide minimum position for subsequence. Must provide --subseq")
 parser.add_argument("-y", "--max", action="store", dest="max", type=int, help="provide maximum position for subsequence. Must provide --subseq")
 parser.add_argument("--leftclip", action="store", dest="leftclip", type=int, help="removes [int] bases from left end or 5' end")
@@ -29,7 +32,10 @@ parser.add_argument("-r", "--reverse", action="store_true", dest="reverse", defa
 parser.add_argument("--reversecomp", "--reverse_complement", action="store_true", dest="reversecomp", default=False, help="reverse complements sequence reads")
 parser.add_argument("--translate", action="store_true", dest="translate", default=False, help="Translate nucleotide seqeunce to amino acid sequence")
 parser.add_argument("--random", action="store_true", dest="random", default=False, help="Generate 50 percent of input sequences randomly using seed value, meaning you get same set of random sequences every time.")
+parser.add_argument("--renameseqids", action="store_true", dest="renameseqids", default=False, help="Renames the seqeunces ids using the prefix provided in the option --prefix")
+parser.add_argument("--prefix", action="store", dest="prefix", default="sequence", help="Prefix to rename sequence ids")
 parser.add_argument("-o", "--output", action="store", dest="output", help="output filename")
+
 
 
 
@@ -343,6 +349,47 @@ def get_seqs_by_id():
 
 	return
 
+def get_seqs_by_seqidregex():
+	if os.path.exists(options.seqidregex):
+		list_of_regex=[]
+		#the argument is a file, not comma separated list
+		with open(options.seqidregex) as fh:
+			for line in fh:
+				line=line.rstrip()
+				if line=="":
+					continue
+				else:
+					list_of_regex.append(line)
+	else:
+		list_of_regex = options.seqidregex.split(",")
+
+	fh=open(options.input)
+	output = "seq_by_idregex_output." + options.inputfiletype
+	out=open(output, "w")
+	for record in SeqIO.parse(fh, options.inputfiletype):
+
+		seqid = record.description
+		if len(list_of_regex)==0:  # return if there is no element left in the list
+			break
+
+		for regex in list_of_regex:
+			if re.search(re.escape(regex), seqid, re.IGNORECASE):
+				list_of_regex.remove(regex)
+				if options.inputfiletype=="fastq":
+					out.write("@"+record.description + "\n" + str(record.seq) + "\n" + "+" + "\n" + convert_int_to_ascii_char(record.letter_annotations["phred_quality"]) + "\n")
+				else:
+					options.inputfiletype=="fasta"
+					out.write(">"+record.description + "\n" + str(record.seq) + "\n")
+			else:
+				continue
+
+	fh.close()
+	out.close()
+	options.input = output
+
+	return
+
+
 def get_subseq():
 	#get sub sequence from defined position to another defined position
 	fh=open(options.input)
@@ -350,10 +397,39 @@ def get_subseq():
 	out =open(output, "w")
 
 	for record in SeqIO.parse(fh, options.inputfiletype):
-		out.write(options.symbol + record.description + "\n")
-		out.write( str(record.seq)[options.min - 1:options.max] + "\n")
-		if options.inputfiletype == "fastq":
-			out.write("+" + "\n" + convert_int_to_ascii_char(record.letter_annotations["phred_quality"][options.min -1:options.max]) + "\n")
+		seqid=record.id
+		if options.list:
+			list_to_extract=open(options.list)
+			for line in list_to_extract:
+				line=line.rstrip()
+				if line=="": continue
+				linearray=line.split()
+				chromosome_name=linearray[0]
+				minvalue=int(linearray[1])
+				maxvalue=int(linearray[2])
+				if seqid==chromosome_name:
+
+					subseq=str(record.seq)[minvalue-1:maxvalue]
+					if subseq.replace("-", "")=="":
+						continue
+					if len(linearray)==4:
+						out.write(options.symbol + linearray[3] + "\n")  # user wants new chromosome name which is supplied in the fourth column
+					else:
+						out.write(options.symbol + record.description + "\n")
+					out.write(subseq + "\n")
+					if options.inputfiletype == "fastq":
+						out.write("+" + "\n" + convert_int_to_ascii_char(record.letter_annotations["phred_quality"][minvalue -1:maxvalue]) + "\n")
+			list_to_extract.close()
+		else:
+
+
+			subseq= str(record.seq)[options.min - 1:options.max]
+			if subseq.replace("-", "") == "":
+				continue
+			out.write(options.symbol + record.description + "\n")
+			out.write( subseq + "\n")
+			if options.inputfiletype == "fastq":
+				out.write("+" + "\n" + convert_int_to_ascii_char(record.letter_annotations["phred_quality"][options.min -1:options.max]) + "\n")
 
 	fh.close()
 	out.close()
@@ -483,6 +559,54 @@ def get_random_sequences_using_random_seed():
 	options.input=output
 	return
 
+def numerate_seqids():
+
+
+	fh=open(options.input)
+	output = "numerate_output." + options.inputfiletype
+	out = open(output, "w")
+
+	counter=1
+	for record in SeqIO.parse(fh, options.inputfiletype):
+		if "|" in record.description:
+			seqid = record.description.replace("|", " ").split()[1]
+		else:
+			seqid = record.description
+		ntseq = str(record.seq)
+		print options.symbol + seqid + "_" + str(counter)
+		print ntseq
+		counter+=1
+
+	fh.close()
+	options.input=output
+	out.close()
+
+def rename_seqids():
+
+	fh=open(options.input)
+	output = "rename_seqids." + options.inputfiletype
+	out = open(output, "w")
+	counter=1
+	for record in SeqIO.parse(fh, options.inputfiletype):
+		seqdescription=record.description
+		seqidArray = seqdescription.split()
+		seqidArray[0] = options.prefix + "_" + str(counter)
+		seqdescription = " ".join(seqidArray)
+		if options.inputfiletype == "fasta":
+			out.write(">" + seqdescription + "\n" + str(record.seq) + "\n")
+		elif options.inputfiletype == "fastq":
+			out.write("@" + seqdescription + "\n" + str(record.seq) + "\n" + "+" + "\n" + convert_int_to_ascii_char(record.letter_annotations["phred_quality"]) + "\n")
+		else:
+			print "Unknown file type ", options.inputfiletype
+			exit(1)
+
+		counter+=1
+		
+	fh.close()
+	out.close()
+	options.input = output
+	return
+
 def Mainprogram():
 
 	if options.input:
@@ -491,6 +615,8 @@ def Mainprogram():
 		elif options.random and not options.interval:
 			get_random_sequences_using_random_seed()
 
+		if options.seqidregex:
+			get_seqs_by_seqidregex()
 		if options.seqid:
 			get_seqs_by_id()
 		if options.getlength == True:
@@ -515,6 +641,10 @@ def Mainprogram():
 			reverse_sequence()
 		elif options.reversecomp:
 			reverse_complement()
+		elif options.numerate:
+			numerate_seqids()
+		elif options.renameseqids == True:
+			rename_seqids()
 
 		if options.translate:
 			ntseq_translation_to_protein()
@@ -522,12 +652,11 @@ def Mainprogram():
 
 		if options.output:
 			os.rename(options.input, options.output)
-
 		elif options.read:
 			read_fasta_fastq()
 		else:
 			read_fasta_fastq()
-			os.remove(options.input)
+			#os.remove(options.input)
 
 	else:
 		print "No input file provided."
