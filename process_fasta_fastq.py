@@ -265,8 +265,8 @@ def get_stats():
 	print "Mean length of total reads/contigs : ", sum(upper_length_list)/len(upper_length_list)
 	print "Standard Deviation of read length :", get_std_dev(upper_length_list)
 	print "N50 read/contig length :", get_N50(upper_length_list)
-	print "N80 read/contig length :", get_N80(upper_length_list)
-	print "N90 read/contig length :", get_N90(upper_length_list)
+	#print "N20 read/contig length :", get_N80(upper_length_list)
+	#print "N10 read/contig length :", get_N90(upper_length_list)
 	print "Total bases :", total_bases
 	if options.inputfiletype=='fastq':
 		print "Total bases with score less than 20 : ", total_low_score_bases, " which is" ,str(total_low_score_bases*100/total_bases)+"% of total bases"
@@ -444,7 +444,6 @@ def filterbylength():
 			print "You can also provide the maximum readlength using option --max. By default there is no max readlength"
 			exit(1)
 
-	print "filtering reads by min and max"
 	fh=open(options.input)
 	output = "filterbylength_output." + options.inputfiletype
 	out = open(output, "w")
@@ -601,7 +600,7 @@ def rename_seqids():
 			exit(1)
 
 		counter+=1
-		
+
 	fh.close()
 	out.close()
 	options.input = output
@@ -622,7 +621,7 @@ def Mainprogram():
 		if options.getlength == True:
 			getlength()
 			exit(0)
-		if filterbylength == True: #user will need to provide the option --min and --max
+		if options.filterbylength == True: #user will need to provide the option --min and --max
 			filterbylength()
 			exit(0)
 		if options.subseq == True:
