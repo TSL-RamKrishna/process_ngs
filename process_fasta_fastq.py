@@ -13,7 +13,7 @@ python {script} --input fasta/fastqFile --stats
 
 """.format(script=sys.argv[0])
 
-parser=argparse.ArgumentParser(description=Description, epilog=usage)
+parser=argparse.ArgumentParser(description=Description, epilog=usage, formatter_class=argparse.RawDescriptionHelpFormatter)
 parser.add_argument("-i", "--input", action="store", dest="input", help="Fasta or fastq input file")
 parser.add_argument("--stats", action="store_true", default=False, help="Prints the basic statistics of the reads")
 parser.add_argument("--numerate", action="store_true", default=False, help="Add _1, _2, ... in sequence ids. Good option if >1 sequences have same ids.")
@@ -23,6 +23,7 @@ parser.add_argument("--seqidregex", action="store", dest="seqidregex", help="get
 parser.add_argument("-l", "--getlength", action="store_true", dest="getlength", default=False, help="Outputs the sequence ID and sequence length (in tab-delimited)")
 parser.add_argument("--filterbylength", action="store_true", dest="filterbylength", help="filter reads by length")
 parser.add_argument("--subseq", action="store_true", dest="subseq", default=False, help="get subsequence from sequence reads. Default: gets first 100 bps in every sequence")
+parser.add_argument("--addtosubseq", action="store_true", dest="addtosubseq", help="get some extra subsequences while extracting. Must supply with subseq option")
 parser.add_argument("--list", action="store", dest="list", help="list to extract. Format: chromosome minpos maxpos [newchromosome]")
 parser.add_argument("-x", "--min", action="store", dest="min", type=int, default=1, help="provide minimum position for subsequence. Must provide --subseq")
 parser.add_argument("-y", "--max", action="store", dest="max", type=int, help="provide maximum position for subsequence. Must provide --subseq")
@@ -396,41 +397,45 @@ def get_subseq():
 	output="subseq." + options.inputfiletype
 	out =open(output, "w")
 
+	def get_subseq_positions(seqid):
+		list_to_extract=open(options.list)
+		seqid_list=[]
+		for line in list_to_extract:
+			line=line.rstrip()
+			if line=="":
+				continue
+
+			linearray=line.split()
+			chromosome_name=linearray[0]
+			minvalue=int(linearray[1])
+			maxvalue=int(linearray[2])
+			if seqid==chromosome_name:
+				seqid_list.append((minvalue, maxvalue))
+
+		list_to_extract.close()
+		return seqid_list
+
 	for record in SeqIO.parse(fh, options.inputfiletype):
 		seqid=record.id
 		if options.list:
-			list_to_extract=open(options.list)
-			for line in list_to_extract:
-				line=line.rstrip()
-				if line=="": continue
-				linearray=line.split()
-				chromosome_name=linearray[0]
-				minvalue=int(linearray[1])
-				maxvalue=int(linearray[2])
+			seqid_list=get_subseq_positions(seqid)
+			for minvalue, maxvalue in seqid_list:
+
 				if minvalue > maxvalue:
 					maxvalue,minvalue=minvalue,maxvalue
-					
-				if seqid==chromosome_name:
 
-					subseq=str(record.seq)[minvalue-1:maxvalue]
-					if subseq.replace("-", "")=="":
-						continue
-					if len(linearray)==4:
-						out.write(options.symbol + linearray[3] + "\n")  # user wants new chromosome name which is supplied in the fourth column
-					else:
-						out.write(options.symbol + record.description + "\n")
-					out.write(subseq + "\n")
-					if options.inputfiletype == "fastq":
-						out.write("+" + "\n" + convert_int_to_ascii_char(record.letter_annotations["phred_quality"][minvalue -1:maxvalue]) + "\n")
-			list_to_extract.close()
+				subseq=str(record.seq)[minvalue-1:maxvalue]
+				if subseq.replace("-", "")=="":
+					continue
+				out.write(options.symbol + record.description + "\n" + subseq + "\n")
+				if options.inputfiletype == "fastq":
+					out.write("+" + "\n" + convert_int_to_ascii_char(record.letter_annotations["phred_quality"][minvalue -1:maxvalue]) + "\n")
+
 		else:
-
-
 			subseq= str(record.seq)[options.min - 1:options.max]
 			if subseq.replace("-", "") == "":
 				continue
-			out.write(options.symbol + record.description + "\n")
-			out.write( subseq + "\n")
+			out.write(options.symbol + record.description + "\n" + subseq + "\n")
 			if options.inputfiletype == "fastq":
 				out.write("+" + "\n" + convert_int_to_ascii_char(record.letter_annotations["phred_quality"][options.min -1:options.max]) + "\n")
 
