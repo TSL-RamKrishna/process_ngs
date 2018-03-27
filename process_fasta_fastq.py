@@ -1,6 +1,6 @@
 #!/user/bin/env python
 
-import sys, os, re
+import sys, os, re, shutil
 import argparse
 from string import maketrans
 
@@ -407,6 +407,9 @@ def get_subseq():
 				chromosome_name=linearray[0]
 				minvalue=int(linearray[1])
 				maxvalue=int(linearray[2])
+				if minvalue > maxvalue:
+					maxvalue,minvalue=minvalue,maxvalue
+					
 				if seqid==chromosome_name:
 
 					subseq=str(record.seq)[minvalue-1:maxvalue]
@@ -650,7 +653,9 @@ def Mainprogram():
 
 
 		if options.output:
-			os.rename(options.input, options.output)
+			print "Renameing ", options.input, " to ", options.output
+			shutil.move(options.input, options.output)
+			#os.rename(options.input, options.output)
 		elif options.read:
 			read_fasta_fastq()
 		else:
