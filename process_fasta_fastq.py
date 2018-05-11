@@ -1,4 +1,4 @@
-#!/user/bin/env python
+#!/user/bin/env python3
 
 import sys, os, re, shutil
 import argparse
@@ -23,7 +23,7 @@ parser.add_argument("--seqidregex", action="store", dest="seqidregex", help="get
 parser.add_argument("-l", "--getlength", action="store_true", dest="getlength", default=False, help="Outputs the sequence ID and sequence length (in tab-delimited)")
 parser.add_argument("--filterbylength", action="store_true", dest="filterbylength", help="filter reads by length")
 parser.add_argument("--subseq", action="store_true", dest="subseq", default=False, help="get subsequence from sequence reads. Default: gets first 100 bps in every sequence")
-parser.add_argument("--addtosubseq", action="store_true", dest="addtosubseq", help="get some extra subsequences while extracting. Must supply with subseq option")
+parser.add_argument("--addtosubseq", action="store", type=int, dest="addtosubseq", help="get some extra subsequences while extracting. Must supply with subseq option")
 parser.add_argument("--list", action="store", dest="list", help="list to extract. Format: chromosome minpos maxpos [newchromosome]")
 parser.add_argument("-x", "--min", action="store", dest="min", type=int, default=1, help="provide minimum position for subsequence. Must provide --subseq")
 parser.add_argument("-y", "--max", action="store", dest="max", type=int, help="provide maximum position for subsequence. Must provide --subseq")
@@ -48,10 +48,10 @@ if not options.output:
 	options.read=True
 
 if (options.leftclip and (options.subseq or options.max)):
-	print "You cannot provide --leftclip option along with --subseq or --max/--min"
+	print("You cannot provide --leftclip option along with --subseq or --max/--min")
 	exit(1)
 if (options.rightclip and (options.subseq or options.max)):
-	print "You cannot provide --rightclip option along with --subseq or --max/--min"
+	print("You cannot provide --rightclip option along with --subseq or --max/--min")
 	exit(1)
 
 
@@ -259,18 +259,18 @@ def get_stats():
 			total_low_score_bases+=low_score_bases(record.letter_annotations["phred_quality"])
 
 	upper_length_list=sorted(upper_length_list)
-	print "\nSummary of Statisitcs:\n"
-	print "Total number of reads/contigs :", len(upper_length_list)
-	print "Minimum read/contig length :", upper_length_list[0]
-	print "Maximum read/contig length : ", upper_length_list[-1]
-	print "Mean length of total reads/contigs : ", sum(upper_length_list)/len(upper_length_list)
-	print "Standard Deviation of read length :", get_std_dev(upper_length_list)
-	print "N50 read/contig length :", get_N50(upper_length_list)
+	print("\nSummary of Statisitcs:\n")
+	print("Total number of reads/contigs :", len(upper_length_list))
+	print("Minimum read/contig length :", upper_length_list[0])
+	print("Maximum read/contig length : ", upper_length_list[-1])
+	print("Mean length of total reads/contigs : ", sum(upper_length_list)/len(upper_length_list))
+	print("Standard Deviation of read length :", get_std_dev(upper_length_list))
+	print("N50 read/contig length :", get_N50(upper_length_list))
 	#print "N20 read/contig length :", get_N80(upper_length_list)
 	#print "N10 read/contig length :", get_N90(upper_length_list)
-	print "Total bases :", total_bases
+	print("Total bases :", total_bases)
 	if options.inputfiletype=='fastq':
-		print "Total bases with score less than 20 : ", total_low_score_bases, " which is" ,str(total_low_score_bases*100/total_bases)+"% of total bases"
+		print("Total bases with score less than 20 : ", total_low_score_bases, " which is" ,str(total_low_score_bases*100/total_bases)+"% of total bases")
 
 
 def check_seqid_in_the_list(record):
@@ -287,11 +287,11 @@ def check_seqid_in_the_list(record):
 def read_fasta_fastq():
 	fh=open(options.input)
 	for record in SeqIO.parse(fh, options.inputfiletype):
-			print options.symbol + record.description
-			print str(record.seq)
+			print(options.symbol + record.description)
+			print(str(record.seq))
 			if options.inputfiletype == "fastq":
-				print "+"
-				print convert_int_to_ascii_char(record.letter_annotations["phred_quality"])
+				print("+")
+				print(convert_int_to_ascii_char(record.letter_annotations["phred_quality"]))
 	return
 
 
@@ -397,9 +397,9 @@ def get_subseq():
 	output="subseq." + options.inputfiletype
 	out =open(output, "w")
 
-	def get_subseq_positions(seqid):
+	def get_subseq_positions():
 		list_to_extract=open(options.list)
-		seqid_list=[]
+		seqid_list=dict()
 		for line in list_to_extract:
 			line=line.rstrip()
 			if line=="":
@@ -409,27 +409,41 @@ def get_subseq():
 			chromosome_name=linearray[0]
 			minvalue=int(linearray[1])
 			maxvalue=int(linearray[2])
-			if seqid==chromosome_name:
-				seqid_list.append((minvalue, maxvalue))
+			if chromosome_name in seqid_list.keys():
+				seqid_list[chromosome_name].add((minvalue, maxvalue))
+			else:
+				seqid_list[chromosome_name]=set([(minvalue, maxvalue)])
 
 		list_to_extract.close()
 		return seqid_list
 
+	if options.list:
+		seqid_list=get_subseq_positions()
+		#print(seqid_list)
+
+	# now go through the fasta sequences and get subsequences
 	for record in SeqIO.parse(fh, options.inputfiletype):
 		seqid=record.id
 		if options.list:
-			seqid_list=get_subseq_positions(seqid)
-			for minvalue, maxvalue in seqid_list:
+			if seqid in seqid_list.keys():
+				print (seqid, seqid_list[seqid])
+				for minvalue, maxvalue in seqid_list[seqid]:
+					if minvalue > maxvalue:
+						maxvalue,minvalue=minvalue,maxvalue
+					if options.addtosubseq:
+						minvalue-=options.addtosubseq
+						maxvalue+=options.addtosubseq
 
-				if minvalue > maxvalue:
-					maxvalue,minvalue=minvalue,maxvalue
+					subseq=str(record.seq)[minvalue-1:maxvalue]
+					if subseq.replace("-", "")=="":
+						continue
+					out.write(options.symbol + record.description + "\n" + subseq + "\n")
+					if options.inputfiletype == "fastq":
+						out.write("+" + "\n" + convert_int_to_ascii_char(record.letter_annotations["phred_quality"][minvalue -1:maxvalue]) + "\n")
 
-				subseq=str(record.seq)[minvalue-1:maxvalue]
-				if subseq.replace("-", "")=="":
-					continue
-				out.write(options.symbol + record.description + "\n" + subseq + "\n")
-				if options.inputfiletype == "fastq":
-					out.write("+" + "\n" + convert_int_to_ascii_char(record.letter_annotations["phred_quality"][minvalue -1:maxvalue]) + "\n")
+
+				del seqid_list[seqid]
+
 
 		else:
 			subseq= str(record.seq)[options.min - 1:options.max]
@@ -446,15 +460,20 @@ def get_subseq():
 	return
 
 def filterbylength():
+	'''
+	Filter the sequences by length, option --min must be provided. --max is optional
+	'''
 
 	if not options.min:
-			print "Please provide the minimum readlength you want using the option --min"
-			print "You can also provide the maximum readlength using option --max. By default there is no max readlength"
+			print("Please provide the minimum readlength you want using the option --min")
+			print("You can also provide the maximum readlength using option --max. By default there is no max readlength")
 			exit(1)
 
 	fh=open(options.input)
 	output = "filterbylength_output." + options.inputfiletype
 	out = open(output, "w")
+
+
 
 	for record in SeqIO.parse(fh, options.inputfiletype):
 		seqid = record.description.replace("|", "_").split()[0]
@@ -520,13 +539,13 @@ def getlength():
 		counter+=1
 		if options.min and options.max:
 			if counter >= options.min and counter <= options.max:
-				print seqid + "\t" + str(len(ntseq))
+				print(seqid + "\t" + str(len(ntseq)))
 		#elif options.number:
 		#	if counter <= options.number:
-		#		print seqid + "\t" + str(len(ntseq))
+		#		print( seqid + "\t" + str(len(ntseq)))
 
 		else:
-			print seqid + "\t" + str(len(ntseq))
+			print(seqid + "\t" + str(len(ntseq)))
 
 	return
 
@@ -580,8 +599,8 @@ def numerate_seqids():
 		else:
 			seqid = record.description
 		ntseq = str(record.seq)
-		print options.symbol + seqid + "_" + str(counter)
-		print ntseq
+		print(options.symbol + seqid + "_" + str(counter))
+		print(ntseq)
 		counter+=1
 
 	fh.close()
@@ -604,7 +623,7 @@ def rename_seqids():
 		elif options.inputfiletype == "fastq":
 			out.write("@" + seqdescription + "\n" + str(record.seq) + "\n" + "+" + "\n" + convert_int_to_ascii_char(record.letter_annotations["phred_quality"]) + "\n")
 		else:
-			print "Unknown file type ", options.inputfiletype
+			print("Unknown file type ", options.inputfiletype)
 			exit(1)
 
 		counter+=1
@@ -629,9 +648,8 @@ def Mainprogram():
 		if options.getlength == True:
 			getlength()
 			exit(0)
-		if options.filterbylength == True: #user will need to provide the option --min and --max
+		if options.filterbylength == True: #user will need to provide the option --min and/or --max
 			filterbylength()
-			exit(0)
 		if options.subseq == True:
 			get_subseq()
 
@@ -658,7 +676,7 @@ def Mainprogram():
 
 
 		if options.output:
-			print "Renameing ", options.input, " to ", options.output
+			#print("Renaming ", options.input, " to ", options.output)
 			shutil.move(options.input, options.output)
 			#os.rename(options.input, options.output)
 		elif options.read:
@@ -668,7 +686,7 @@ def Mainprogram():
 			#os.remove(options.input)
 
 	else:
-		print "No input file provided."
+		print("No input file provided.")
 		exit(1)
 
 	exit(0)
@@ -682,6 +700,6 @@ if __name__=="__main__":
 		options.inputfiletype="fastq"
 		options.symbol="@"
 	else:
-		print "Could not determine fasta or fastq file type. Fasta file should have .fasta or .fa file extension and fastq file should have .fastq or .fq file extension."
+		print("Could not determine fasta or fastq file type. Fasta file should have .fasta or .fa file extension and fastq file should have .fastq or .fq file extension.")
 		exit(1)
 	Mainprogram()
