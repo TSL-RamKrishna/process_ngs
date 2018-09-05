@@ -24,6 +24,10 @@ parser.add_argument("-l", "--getlength", action="store_true", dest="getlength", 
 parser.add_argument("--filterbylength", action="store_true", dest="filterbylength", help="filter reads by length")
 parser.add_argument("--subseq", action="store_true", dest="subseq", default=False, help="get subsequence from sequence reads. Default: gets first 100 bps in every sequence")
 parser.add_argument("--addtosubseq", action="store", type=int, dest="addtosubseq", help="get some extra subsequences while extracting. Must supply with subseq option")
+parser.add_argument("--blastout", action="store", dest="blastout", help="blast output fmt 6 file with 12 columns")
+#parser.add_argument("--add_query_subject", action="store_true", dest="add_query_subject", help="add query and subject id in the output subseq fasta file")
+parser.add_argument("--extract_query_subseq", action="store_true", dest="extract_query_subseq", help="extract query subsequence as shown in blast output")
+parser.add_argument("--extract_subject_subseq", action="store_true", dest="extract_subject_subseq", help="extract subject subsequence as shown in blast output")
 parser.add_argument("--list", action="store", dest="list", help="list to extract. Format: chromosome minpos maxpos [newchromosome]")
 parser.add_argument("-x", "--min", action="store", dest="min", type=int, default=1, help="provide minimum position for subsequence. Must provide --subseq")
 parser.add_argument("-y", "--max", action="store", dest="max", type=int, help="provide maximum position for subsequence. Must provide --subseq")
@@ -43,6 +47,10 @@ parser.add_argument("-o", "--output", action="store", dest="output", help="outpu
 
 options=parser.parse_args()
 options.temp_input = options.input
+
+if not options.input:
+	print "Input file not provided. User --input option to provide a file"
+	exit(1)
 
 if not options.output:
 	options.read=True
@@ -313,7 +321,10 @@ def get_seqid_list():
 		fh=open(options.seqid)
 		for line in fh:
 			line=line.strip()
-			options.idlist.append(line)
+			if line == "":
+				continue
+			else:
+				options.idlist.append(line)
 		fh.close()
 	else:
 		options.idlist=options.seqid.split(",")
@@ -323,6 +334,7 @@ def get_seqid_list():
 
 def get_seqs_by_id():
 	get_seqid_list()
+	print options.idlist
 	fh=open(options.input)
 	output = "seq_by_id_output." + options.inputfiletype
 	out=open(output, "w")
@@ -333,7 +345,7 @@ def get_seqs_by_id():
 			if seqid.startswith("@") or seqid.startswith(">"):
 				seqid=seqid[1:]
 			#print seqid, record.id
-			if seqid == record.id or seqid.lower() == replace_special_chars(record.description.lower()) or seqid.lower() +" " in replace_special_chars(record.description.lower()):
+			if seqid == record.id or seqid.lower() == replace_special_chars(record.description.lower()) or seqid.lower() +" " in replace_special_chars(record.description.lower()) or record.description.startswith(seqid[:10]):
 				#print "printing record"
 				#get_reads_with_seqid(record, "fasta")
 				if options.inputfiletype=="fastq":
@@ -398,6 +410,7 @@ def get_subseq():
 	out =open(output, "w")
 
 	def get_subseq_positions():
+
 		list_to_extract=open(options.list)
 		seqid_list=dict()
 		for line in list_to_extract:
@@ -417,9 +430,27 @@ def get_subseq():
 		list_to_extract.close()
 		return seqid_list
 
+	def get_blast_out_results():
+
+		blastoutput = open(options.blastout)
+		blast_dict = {}
+		for line in blastoutput:
+			line=line.rstrip()
+			if line == "":
+				continue
+			else:
+				array=line.split()
+				blast_dict[array[0] + "_" + array[1] + "_" + array[2]] = {"query":array[0], "subject":array[1], "perc_identity":float(array[2]), "alignment_length":int(array[3]), "mismatches":int(array[4]), "gaps":int(array[5]),
+				"qstart" : int(array[6]), "qend":int(array[7]), "sstart":int(array[8]), "send":int(array[9]), "pvalue":float(array[10]), "last":int(array[11])}
+		return blast_dict
+
+
+
 	if options.list:
 		seqid_list=get_subseq_positions()
 		#print(seqid_list)
+	elif options.blastout:
+		blast_dict=get_blast_out_results()
 
 	# now go through the fasta sequences and get subsequences
 	for record in SeqIO.parse(fh, options.inputfiletype):
@@ -444,7 +475,26 @@ def get_subseq():
 
 				del seqid_list[seqid]
 
+		elif options.blastout:
 
+			if options.extract_query_subseq:
+				for key in blast_dict:
+					if blast_dict[key]["query"] == seqid or blast_dict[key]["subject"] == seqid:
+						minvalue=blast_dict[key]["qstart"]; maxvalue=blast_dict[key]["qend"]
+						if minvalue> maxvalue:
+							minvalue, maxvalue=maxvalue, minvalue
+						subseq=str(record.seq)[minvalue-1:maxvalue]
+
+						out.write(options.symbol + key + "\n" + subseq + "\n")
+			elif options.extract_subject_subseq:
+				for key in blast_dict:
+					if blast_dict[key]["query"] == seqid or blast_dict[key]["subject"] == seqid:
+						minvalue=blast_dict[key]["sstart"]; maxvalue=blast_dict[key]["send"]
+						if minvalue > maxvalue:
+							minvalue, maxvalue= maxvalue, minvalue
+						subseq=str(record.seq)[minvalue-1:maxvalue]
+
+						out.write(options.symbol + key + "\n" + subseq + "\n")
 		else:
 			subseq= str(record.seq)[options.min - 1:options.max]
 			if subseq.replace("-", "") == "":
@@ -702,4 +752,5 @@ if __name__=="__main__":
 	else:
 		print("Could not determine fasta or fastq file type. Fasta file should have .fasta or .fa file extension and fastq file should have .fastq or .fq file extension.")
 		exit(1)
+
 	Mainprogram()
