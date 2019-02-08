@@ -15,10 +15,12 @@ python {script} --input fasta/fastqFile --stats
 
 parser=argparse.ArgumentParser(description=Description, epilog=usage, formatter_class=argparse.RawDescriptionHelpFormatter)
 parser.add_argument("-i", "--input", action="store", dest="input", help="Fasta or fastq input file")
+parser.add_argument('--read', action="store_true", dest="read", default=False, help="Just read the input file. Good to convert multi line reads to single line")
 parser.add_argument("--stats", action="store_true", default=False, help="Prints the basic statistics of the reads")
 parser.add_argument("--numerate", action="store_true", default=False, help="Add _1, _2, ... in sequence ids. Good option if >1 sequences have same ids.")
 parser.add_argument("--interval", action="store", dest="interval", help="gets the sequences in interval specified. Pvide start point and then interval. e.g. 3,2")
 parser.add_argument("--seqid", action="store", dest="seqid", help="comma separated list of sequence id from input file")
+parser.add_argument('--seqidinorder', action='store_true', default=False, dest='seqidinorder', help='get the seqid in order as it appear in the list')
 parser.add_argument("--seqidregex", action="store", dest="seqidregex", help="get sequences with sequence id matching the regular expression provided")
 parser.add_argument("-l", "--getlength", action="store_true", dest="getlength", default=False, help="Outputs the sequence ID and sequence length (in tab-delimited)")
 parser.add_argument("--filterbylength", action="store_true", dest="filterbylength", help="filter reads by length")
@@ -195,9 +197,6 @@ def doleftrightclip():
 
 	return
 
-
-
-
 def get_std_dev(scores):
 	import math
 	total=0
@@ -254,7 +253,6 @@ def get_N90(upper_length_list):
 
         return None
 
-
 def get_stats():
 	total_low_score_bases=0
 	total_bases=0
@@ -280,7 +278,6 @@ def get_stats():
 	if options.inputfiletype=='fastq':
 		print("Total bases with score less than 20 : ", total_low_score_bases, " which is" ,str(total_low_score_bases*100/total_bases)+"% of total bases")
 
-
 def check_seqid_in_the_list(record):
 
 	for seqid in options.idlist:
@@ -289,8 +286,6 @@ def check_seqid_in_the_list(record):
 			return True
 
 	return None
-
-
 
 def read_fasta_fastq():
 	fh=open(options.input)
@@ -302,16 +297,11 @@ def read_fasta_fastq():
 				print(convert_int_to_ascii_char(record.letter_annotations["phred_quality"]))
 	return
 
-
-
-
-
 def replace_special_chars(sequence_id):
 	special_chars="|!$^*(){}[]\/"
 	for char in special_chars:
 		sequence_id=sequence_id.replace(char, " ")
 	return sequence_id
-
 
 def get_seqid_list():
 	options.idlist=[]
@@ -334,29 +324,62 @@ def get_seqid_list():
 
 def get_seqs_by_id():
 	get_seqid_list()
-	print options.idlist
-	fh=open(options.input)
+
 	output = "seq_by_id_output." + options.inputfiletype
 	out=open(output, "w")
-	for record in SeqIO.parse(fh, options.inputfiletype):
+	if options.seqidinorder == True:
 
-		for seqid in options.idlist:
-			tmpseqid=seqid
-			if seqid.startswith("@") or seqid.startswith(">"):
-				seqid=seqid[1:]
-			#print seqid, record.id
-			if seqid == record.id or seqid.lower() == replace_special_chars(record.description.lower()) or seqid.lower() +" " in replace_special_chars(record.description.lower()) or record.description.startswith(seqid[:10]):
-				#print "printing record"
-				#get_reads_with_seqid(record, "fasta")
-				if options.inputfiletype=="fastq":
-					out.write("@"+record.description + "\n" + str(record.seq) + "\n" + "+" + "\n" + convert_int_to_ascii_char(record.letter_annotations["phred_quality"]) + "\n")
+		while len(options.idlist) > 0:
+			fh=open(options.input)
+
+			for record in SeqIO.parse(fh, options.inputfiletype):
+				recseqid=record.description
+				if len(options.idlist) == 0:
+					pass
 				else:
-					options.inputfiletype=="fasta"
-					out.write(">"+record.description + "\n" + str(record.seq) + "\n")
+					firstseqid = options.idlist[0]
 
-				options.idlist.remove(tmpseqid)
-				break
-	fh.close()
+				if firstseqid.startswith("@") or firstseqid.startswith(">"):
+					seqid=firstseqid[1:]
+
+				if seqid in recseqid or seqid == recseqid:
+					if options.inputfiletype=="fastq":
+						out.write("@"+record.description + "\n" + str(record.seq) + "\n" + "+" + "\n" + convert_int_to_ascii_char(record.letter_annotations["phred_quality"]) + "\n")
+					else:
+						options.inputfiletype=="fasta"
+						out.write(">"+record.description + "\n" + str(record.seq) + "\n")
+					options.idlist.remove(firstseqid)
+
+				else:
+					pass
+
+			fh.close()
+
+
+
+
+
+	else:
+		fh=open(options.input)
+		for record in SeqIO.parse(fh, options.inputfiletype):
+
+			for seqid in options.idlist:
+				tmpseqid=seqid
+				if seqid.startswith("@") or seqid.startswith(">"):
+					seqid=seqid[1:]
+				#print seqid, record.id
+				if seqid == record.id or seqid.lower() == replace_special_chars(record.description.lower()) or seqid.lower() +" " in replace_special_chars(record.description.lower()) or record.description.startswith(seqid[:10]):
+					#print "printing record"
+					#get_reads_with_seqid(record, "fasta")
+					if options.inputfiletype=="fastq":
+						out.write("@"+record.description + "\n" + str(record.seq) + "\n" + "+" + "\n" + convert_int_to_ascii_char(record.letter_annotations["phred_quality"]) + "\n")
+					else:
+						options.inputfiletype=="fasta"
+						out.write(">"+record.description + "\n" + str(record.seq) + "\n")
+
+					options.idlist.remove(tmpseqid)
+					break
+		fh.close()
 	out.close()
 	options.input = output
 
@@ -401,7 +424,6 @@ def get_seqs_by_seqidregex():
 	options.input = output
 
 	return
-
 
 def get_subseq():
 	#get sub sequence from defined position to another defined position
@@ -547,7 +569,6 @@ def filterbylength():
 	options.input=output
 	out.close()
 
-
 def seq_by_interval():
 
 	start=int(options.interval.split(",")[0])
@@ -578,7 +599,6 @@ def seq_by_interval():
 	options.input=output
 
 	return
-
 
 def getlength():
 	fh=open(options.input)
