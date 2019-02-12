@@ -331,7 +331,7 @@ def get_seqs_by_id():
 
 		while len(options.idlist) > 0:
 			fh=open(options.input)
-
+			number_of_seqs_found=0
 			for record in SeqIO.parse(fh, options.inputfiletype):
 				recseqid=record.description
 				if len(options.idlist) == 0:
@@ -349,11 +349,15 @@ def get_seqs_by_id():
 						options.inputfiletype=="fasta"
 						out.write(">"+record.description + "\n" + str(record.seq) + "\n")
 					options.idlist.remove(firstseqid)
+					number_of_seqs_found+=1
 
 				else:
 					pass
 
 			fh.close()
+			if number_of_seqs_found==0:	# no more reads found, any remains in the idlist are not in the file.
+				sys.stderr.out("IDs not found : " + " ".join(options.idlist))
+				break
 
 
 
