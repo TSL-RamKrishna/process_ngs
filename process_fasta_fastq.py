@@ -557,13 +557,13 @@ def filterbylength():
 		if len(ntseq) >= options.min:
 			if options.max:
 				if len(ntseq) <= options.max:
-					out.write(options.symbol + seqid + "\n" + ntseq + "\n")
+					out.write(options.symbol + seqid + " Len=" + str(len(ntseq)) + "\n" + ntseq + "\n")
 					if options.inputfiletype == "fastq":
 						out.write("+" + convert_int_to_ascii_char(record.letter_annotations["phred_quality"]) + "\n")
 				else:
 					continue
 			else:
-				out.write(options.symbol + seqid + "\n" + ntseq + "\n")
+				out.write(options.symbol + seqid + " Len=" + str(len(ntseq)) + "\n" + ntseq + "\n")
 				if options.inputfiletype == "fastq":
 					out.write("+" + convert_int_to_ascii_char(record.letter_annotations["phred_quality"]) + "\n")
 		else:
