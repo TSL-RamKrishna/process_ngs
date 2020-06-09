@@ -65,11 +65,11 @@ parser.add_argument(
     dest="seqidregex",
     help="get sequences with sequence id matching the regular expression provided",
 )
-parser.add-add_argument(
-	"--deselect",
-	action="store_true",
-	dest="deselect",
-	help="Remove sequences by sequence id in the list/file provided"
+parser.add_argument(
+    "--deselect",
+    action="store_true",
+    dest="deselect",
+    help="Remove sequences by sequence id in the list/file provided"
 )
 parser.add_argument(
     "-l",
@@ -787,27 +787,32 @@ def get_seqs_by_seqidregex():
 
 def deselect():
     ''' remove sequences by sequence id '''
-	seqid_list=[]
-	if os.path.exists(options.seqid):
-		with open(options.seqid) as fh:
-			for line in fh:
-    			line=line.rstrip()
-    			seqid_list.append(line)
-	else:
-		seqid_list = options.seqid.split(",")
+    seqid_list=[]
+    if os.path.exists(options.seqid):
+        with open(options.seqid) as fh:
+            for line in fh:
+                line=line.rstrip()
+                seqid_list.append(line)
+    else:
+        seqid_list = options.seqid.split(",")
 	
-	output="deselect." + options.inputfiletype
-	with open(output) as out:
-		with open(options.input) as infh:
-			for record in SeqIO.parse(infh, options.inputfiletype):
-    			if record.id in seqid_list:
-    				continue
-				else:
-    				out.write(record.format("fastq")+ "\n")
+    # print("total to deselect ", len(seqid_list))
+    output="deselect." + options.inputfiletype
+    with open(output, 'w') as out:
+        with open(options.input) as infh:
+            for record in SeqIO.parse(infh, options.inputfiletype):
+                if record.id in seqid_list:
+                    # print(record.id, "present")
+                    continue
+                else:
+                    if options.inputfiletype == 'fastq':
+                        out.write(record.format("fastq"))
+                    else:
+                        out.write(record.format("fasta"))
 	
-	options.input=output
-	return
-	
+    options.input=output
+    return
+
 def get_subseq():
     # get sub sequence from defined position to another defined position
     fh = open(options.input)
@@ -1206,7 +1211,9 @@ def Mainprogram():
 
         if options.seqidregex:
             get_seqs_by_seqidregex()
-        if options.seqid:
+        if options.deselect==True and options.seqid:
+            deselect()
+        if options.seqid and options.deselect == False:
             get_seqs_by_id()
         if options.getlength == True:
             getlength()
