@@ -862,7 +862,7 @@ def get_subseq():
                     "sstart": int(array[8]),
                     "send": int(array[9]),
                     "pvalue": float(array[10]),
-                    "last": int(array[11]),
+                    "last": array[11],
                 }
         return blast_dict
 
@@ -881,6 +881,7 @@ def get_subseq():
                 for minvalue, maxvalue in seqid_list[seqid]:
                     if minvalue > maxvalue:
                         maxvalue, minvalue = minvalue, maxvalue
+                        
                     if options.addtosubseq:
                         minvalue -= options.addtosubseq
                         maxvalue += options.addtosubseq
